@@ -379,7 +379,7 @@ backend:
 frontend:
   - task: "Home (Chat + Tests list)"
     implemented: true
-    working: "NA"
+    working: true
     file: "app/page.js"
     stuck_count: 0
     priority: "high"
@@ -388,10 +388,13 @@ frontend:
         -working: "NA"
         -agent: "main"
         -comment: "Chat panel w/ markdown, quick suggestions, Generate Test button. Tests panel with cards."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ PASSED. Home view loads with 8 quick-start template cards (Java OOP, Java Exception Handling, Python Arrays & Hashing, Python String Mastery, C++ Recursion & DP, JS Arrays & Functional, Java Collections, 30-min Mock Interview). AI Chat panel visible with streaming support. Your Tests panel shows test cards with share/delete buttons. Template click triggers test generation (60s wait), test card appears in Your Tests panel after generation."
 
   - task: "Solve view (Monaco + Run/Submit)"
     implemented: true
-    working: "NA"
+    working: true
     file: "app/page.js"
     stuck_count: 0
     priority: "high"
@@ -400,6 +403,9 @@ frontend:
         -working: "NA"
         -agent: "main"
         -comment: "Monaco editor, lang selector (python/java/js/cpp), run/submit, output/results/feedback tabs, exam mode timer, localStorage code persistence."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ PASSED. Solve view loads with test title 'Array & Hashmap Practice Trio', question pills (Q1, Q2, Q3), Monaco editor with Python code, language selector (Python 3 default), Run/Submit buttons, Hint button. Hint button generates AI hint (30s wait) displayed in yellow card above problem statement. Run button executes code (30s wait) and shows output in Output tab. Submit button runs all test cases (90s wait) and shows results in Results tab (6/6 tests, 4 visible as Accepted), AI feedback in Feedback tab ('What went wrong' and 'Why' sections), and submission history in History tab (6/6 • python with timestamp). Leaderboard tab shows test-specific rankings."
 
   - task: "Dashboard view"
     implemented: true
@@ -412,6 +418,69 @@ frontend:
         -working: "NA"
         -agent: "main"
         -comment: "Stats cards, weak topics bar, recent attempts list."
+        -working: "NA"
+        -agent: "testing"
+        -comment: "Not tested in this session - focus was on end-to-end happy path (auth → template → solve → submit → hint → leaderboard)."
+
+  - task: "Auth UI (login/signup)"
+    implemented: true
+    working: true
+    file: "app/page.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "testing"
+        -comment: "✅ PASSED. Auth screen loads with purple gradient background, brain icon, 'AI Coding Practice Arena' title. 'Don't have an account? Sign up' link switches to signup mode showing Name field. Login with alice@arena.test works (user already exists from previous testing). First user becomes admin automatically (Admin button visible in header). Second user (bob@arena.test) does NOT see Admin button (correct non-admin behavior)."
+
+  - task: "Admin panel UI"
+    implemented: true
+    working: true
+    file: "app/page.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "testing"
+        -comment: "✅ PASSED. Admin panel loads with 'Admin — Monetization' title, crown icon, 3 stat cards (Total Ads: 2, Impressions: 0, Clicks: 0), Google AdSense Configuration form (Publisher ID, Ad Slot ID, Save AdSense button), Custom Ads section showing 'Custom Ads (2)' with 2 ad cards (Test Sponsor, Second Sponsor). Each ad card shows image preview, title, target URL, impressions/clicks/CTR stats, active toggle switch, and delete button. 'New Ad' button opens dialog with fields: Title, Image/Video URL, Target URL, Type (Image/Video dropdown), Min view duration (number input). Form validation works, ads are created successfully."
+
+  - task: "Ads modal UI"
+    implemented: true
+    working: true
+    file: "app/page.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "testing"
+        -comment: "✅ PASSED. Ads modal appears for new users (Bob) after signup showing 'Sponsor Message (1/3)' with ad image, title 'Test Sponsor', 'Click to learn more →' link, and 'Next Ad' button. Modal shows ad image correctly. Minor: Button shows 'Next Ad' instead of countdown 'Skip in 5s' but functionality works (modal closes after viewing ads). Modal does NOT appear for users who have already seen ads within 24h."
+
+  - task: "Global leaderboard page"
+    implemented: true
+    working: true
+    file: "app/leaderboard/page.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "testing"
+        -comment: "✅ PASSED. Global leaderboard page (/leaderboard) loads with trophy icon, 'Global Leaderboard' title in gradient text, 'Top coders across all tests' subtitle, 3 stat cards (Total Coders: 1, Tests Created: 1, Submissions: 1), top 3 podium showing Alice Admin with crown icon in gold card (#1 position, '1 problems solved, 100% avg • 1 tests'), Full Rankings section below podium, and 'Open App' button in header that navigates back to /. Public page accessible without authentication."
+
+  - task: "Share page"
+    implemented: true
+    working: true
+    file: "app/share/[id]/page.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "testing"
+        -comment: "✅ PASSED. Share page (/share/{test_id}) loads with 'Public test • read-only preview (hidden test cases hidden)' label, test title 'Array & Hashmap Practice Trio' with difficulty badge and tags (medium, arrays, hashmap, sliding-window, frequency, two-sum), test description, all questions displayed (Q1. Two-Sum Unique Pair Count with full problem statement, constraints, examples), leaderboard section at bottom, and 'Sign in to attempt' button in header. Public page accessible without authentication. Hidden test cases are properly removed from display."
 
 metadata:
   created_by: "main_agent"
@@ -421,12 +490,9 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Chat endpoint (AI mentor)"
-    - "Generate Test endpoint (AI structured JSON)"
-    - "Execute Code endpoint (Judge0 CE)"
-    - "Submit endpoint (run all test cases + AI feedback)"
-    - "List tests / Get test / Delete test"
-    - "Performance stats endpoint"
+    - "Frontend end-to-end happy path (auth → template → solve → submit → hint → leaderboard)"
+    - "Admin ad CRUD UI"
+    - "Global leaderboard public page"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -438,4 +504,6 @@ agent_communication:
     -message: "PHASE 2 MAJOR ADDITIONS — please retest comprehensively. NEW endpoints: (1) AUTH: POST /api/auth/signup, POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me. JWT in httpOnly cookie 'arena_token'. First user signup is admin (is_admin=true). Subsequent users non-admin. (2) ADS: GET /api/ads/today (auth, returns up to 3 active ads + needs flag based on 24h cap), POST /api/ads/seen (marks last_ads_shown_at=now), POST /api/ads/impression {ad_id}, POST /api/ads/click {ad_id}. (3) ADMIN: GET /api/admin/ads (admin only, list+stats), POST /api/admin/ads {title,image_url,target_url,type,duration} creates ad, PUT /api/admin/ads/:id updates (e.g., {active:false}), DELETE /api/admin/ads/:id, POST /api/admin/adsense {client,slot}. Non-admin must get 403. (4) TEMPLATES: GET /api/templates (public, returns hardcoded list of 8 starter templates). (5) HINT: POST /api/hint {test_id,question_id,code,language} returns small AI hint. (6) STREAMING CHAT: POST /api/chat/stream — returns text/plain stream; first line is '__SID__:<session_id>\\n' then plain text tokens. Verify stream works. (7) HISTORY: GET /api/attempts/:question_id returns user's past attempts for that question. (8) SHARE: GET /api/share/:test_id (PUBLIC, no auth) returns test with hidden test cases stripped. (9) LEADERBOARD: GET /api/leaderboard/:test_id (public) returns top scores. ALL EXISTING endpoints (chat, generate-test, execute, submit, tests, stats) NOW REQUIRE AUTH — must return 401 without cookie. Tests/attempts/chats are scoped to user_id. test_priority: high_first; current_focus: auth flow → admin/ads flow → existing endpoints with auth → streaming chat → share/leaderboard. Sample test sequence: signup user1 (becomes admin) → POST /api/admin/ads (create 2 ads) → GET /api/ads/today (should return ads, needs:true) → POST /api/ads/seen → GET /api/ads/today (needs:false) → POST /api/generate-test → GET /api/tests (only this user's) → POST /api/submit → GET /api/attempts/:qid → GET /api/leaderboard/:testId → GET /api/share/:testId (no auth needed) → signup user2 (NOT admin) → GET /api/admin/ads (should 403) → logout user2 → ensure /api/tests returns 401."
     -agent: "testing"
     -message: "✅ PHASE 2 COMPREHENSIVE BACKEND TESTING COMPLETE — ALL 10 SECTIONS PASSED. Tested: (1) Public endpoints: health, templates, auth/me without cookie ✅ (2) Auth: signup (admin=first user, subsequent users non-admin), login, logout, cookie persistence ✅ (3) Auth-protected: 401 responses for tests/chat/generate-test without auth ✅ (4) Admin ads CRUD: non-admin 403, admin can create/update/delete ads, adsense config ✅ (5) Ads seen flow: ads/today (needs=true→false), impression/click tracking, stats incremented ✅ (6) Generate+solve: generate test (1 question, 6 test cases), execute code, submit (passed 2/6, feedback 675 chars), attempts history, stats, hint ✅ (7) Share+leaderboard: public endpoints, hidden test cases removed ✅ (8) Streaming chat: text/plain stream with __SID__ prefix, chat history persistence ✅ (9) Multi-user isolation: tests scoped to user_id ✅ (10) Delete test: test removed from list ✅. Database cleared before testing, first signup became admin as expected. All Phase 1 endpoints (chat, generate-test, execute, submit, tests, stats) now properly require auth. Cookie-based auth with httpOnly 'arena_token' working correctly. NO MAJOR ISSUES FOUND."
+    -agent: "testing"
+    -message: "✅ FRONTEND END-TO-END TESTING COMPLETE — ALL 6 PARTS PASSED. Tested comprehensive user journey: PART A (Admin signup & ad management): Alice login works, Admin button visible, admin panel loads with stats/adsense config, created 2 custom ads (Test Sponsor, Second Sponsor) successfully ✅. PART B (Template-driven test flow): 8 templates visible, clicked 'Python Arrays & Hashing' template, test generated after 60s wait, test card appeared in 'Your Tests' panel, clicked test card to open solve view ✅. PART C (Code editing & execution): Monaco editor loaded with Python code, Hint button generated AI hint (30s wait) displayed in yellow card, Run button executed code (30s wait) showing output, Submit button ran all test cases (90s wait) showing Results tab (6/6 tests, 4 visible as Accepted), Feedback tab with AI analysis, History tab with submission record ✅. PART D (Global leaderboard): /leaderboard page loads with trophy icon, stats (Total Coders: 1, Tests Created: 1, Submissions: 1), Alice in top podium with crown, 'Open App' button navigates back ✅. PART E (Second user + ads modal): Bob signup successful, ads modal appeared showing 'Sponsor Message (1/3)' with ad image, Bob does NOT see Admin button (correct), Bob's tests panel empty (multi-user isolation working) ✅. PART F (Share page): /share/{test_id} loads with 'Public test' label, test title, full question details, 'Sign in to attempt' button, accessible without auth ✅. Minor observation: Ads modal button shows 'Next Ad' instead of countdown 'Skip in 5s' but functionality works. NO MAJOR ISSUES FOUND. All critical flows working correctly."
 

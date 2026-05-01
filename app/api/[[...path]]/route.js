@@ -240,6 +240,48 @@ export async function GET(request, { params }) {
       return ok({ test: sanitized })
     }
 
+    if (path === 'global-leaderboard') {
+      // Public — top users across all tests
+      const attempts = await db.collection('attempts').find({}).toArray()
+      const byUser = {}
+      for (const a of attempts) {
+        const uid = a.user_id || 'anon'
+        if (!byUser[uid]) byUser[uid] = { user_id: uid, attempts: 0, solved_set: new Set(), score_sum: 0, langs: new Set(), tests_set: new Set(), best_per_q: {} }
+        const u = byUser[uid]
+        u.attempts += 1
+        if (a.language) u.langs.add(a.language)
+        u.tests_set.add(a.test_id)
+        const score = a.total ? (a.passed / a.total) : 0
+        const prev = u.best_per_q[a.question_id] || 0
+        if (score > prev) {
+          u.score_sum += (score - prev)
+          u.best_per_q[a.question_id] = score
+        }
+        if (a.passed === a.total && a.total > 0) u.solved_set.add(a.question_id)
+      }
+      const userIds = Object.keys(byUser).filter(x => x !== 'anon')
+      const users = await db.collection('users').find({ id: { $in: userIds } }).toArray()
+      const userMap = Object.fromEntries(users.map(u => [u.id, u]))
+      const board = Object.values(byUser).map(u => {
+        const usr = userMap[u.user_id]
+        const totalQs = Object.keys(u.best_per_q).length
+        return {
+          user: usr?.name || usr?.email?.split('@')[0] || 'anonymous',
+          is_admin: !!usr?.is_admin,
+          solved: u.solved_set.size,
+          attempts: u.attempts,
+          tests_taken: u.tests_set.size,
+          avg_score: totalQs ? Math.round((u.score_sum / totalQs) * 100) : 0,
+          languages: Array.from(u.langs),
+          joined: usr?.created_at,
+        }
+      }).sort((a, b) => b.solved - a.solved || b.avg_score - a.avg_score).slice(0, 100)
+      const totalUsers = await db.collection('users').countDocuments({})
+      const totalAttempts = attempts.length
+      const totalTests = await db.collection('tests').countDocuments({})
+      return ok({ leaderboard: board, stats: { totalUsers, totalAttempts, totalTests } })
+    }
+
     if (path.startsWith('leaderboard/')) {
       const id = path.split('/')[1]
       const attempts = await db.collection('attempts').find({ test_id: id }).sort({ created_at: -1 }).limit(500).toArray()

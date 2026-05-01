@@ -272,6 +272,9 @@ function Header({ user, view, setView, onLogout }) {
           <Button variant={view === 'dashboard' ? 'default' : 'ghost'} size="sm" onClick={() => setView('dashboard')}>
             <TrendingUp className="w-4 h-4 mr-1.5" /> Progress
           </Button>
+          <Button variant="ghost" size="sm" asChild>
+            <a href="/leaderboard"><Trophy className="w-4 h-4 mr-1.5" /> Global</a>
+          </Button>
           {user.is_admin && (
             <Button variant={view === 'admin' ? 'default' : 'ghost'} size="sm" onClick={() => setView('admin')}>
               <Shield className="w-4 h-4 mr-1.5" /> Admin
