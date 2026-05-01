@@ -836,7 +836,12 @@ function DiffView({ before, after }) {
 // ============= DASHBOARD =============
 function Dashboard({ onBack }) {
   const [stats, setStats] = useState(null)
-  useEffect(() => { fetch('/api/stats').then(r => r.json()).then(setStats).catch(() => {}) }, [])
+  useEffect(() => {
+    fetch('/api/stats').then(r => r.json()).then(d => {
+      if (d.error) { setStats({ total: 0, solved: 0, accuracy: 0, attempts: [], weak: [] }); return }
+      setStats({ total: d.total || 0, solved: d.solved || 0, accuracy: d.accuracy || 0, attempts: d.attempts || [], weak: d.weak || [] })
+    }).catch(() => setStats({ total: 0, solved: 0, accuracy: 0, attempts: [], weak: [] }))
+  }, [])
   return (
     <main className="container mx-auto px-4 py-6 max-w-5xl">
       <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
@@ -848,11 +853,11 @@ function Dashboard({ onBack }) {
           <StatCard icon={<Target className="w-5 h-5 text-emerald-400" />} label="Solved" value={stats.solved} />
           <StatCard icon={<TrendingUp className="w-5 h-5 text-indigo-400" />} label="Avg Accuracy" value={`${stats.accuracy}%`} />
         </div>
-        {stats.weak?.length > 0 && (
+        {(stats.weak || []).length > 0 && (
           <Card className="mb-6">
             <CardHeader><CardTitle className="text-base">Topics to Improve</CardTitle></CardHeader>
             <CardContent className="space-y-2">
-              {stats.weak.map(w => (
+              {(stats.weak || []).map(w => (
                 <div key={w.tag} className="flex items-center gap-3">
                   <Badge variant="secondary">{w.tag}</Badge>
                   <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
@@ -867,9 +872,9 @@ function Dashboard({ onBack }) {
         <Card>
           <CardHeader><CardTitle className="text-base">Recent Attempts</CardTitle></CardHeader>
           <CardContent>
-            {stats.attempts.length === 0 && <div className="text-muted-foreground text-sm">No attempts yet.</div>}
+            {(stats.attempts || []).length === 0 && <div className="text-muted-foreground text-sm">No attempts yet.</div>}
             <div className="space-y-2">
-              {stats.attempts.map(a => (
+              {(stats.attempts || []).map(a => (
                 <div key={a.id} className="flex items-center gap-3 p-2 rounded border border-border/60">
                   {a.passed === a.total ? <Check className="w-4 h-4 text-emerald-400" /> : <X className="w-4 h-4 text-rose-400" />}
                   <div className="flex-1 min-w-0">
