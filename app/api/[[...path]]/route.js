@@ -19,17 +19,26 @@ const EMERGENT_LLM_URL = 'https://integrations.emergentagent.com/llm/v1/chat/com
 const LLM_KEY = process.env.EMERGENT_LLM_KEY
 const DEFAULT_MODEL = 'gpt-5.1'
 
-async function llmChat(messages, { jsonMode = false, model = DEFAULT_MODEL } = {}) {
+async function llmRaw(messages, { jsonMode = false, model = DEFAULT_MODEL, tools = null } = {}) {
   const body = { model, messages }
   if (jsonMode) body.response_format = { type: 'json_object' }
+  if (tools) body.tools = tools
   const r = await fetch(EMERGENT_LLM_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${LLM_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
   if (!r.ok) { const t = await r.text(); throw new Error(`LLM ${r.status}: ${t}`) }
-  const data = await r.json()
+  return await r.json()
+}
+
+async function llmChat(messages, opts = {}) {
+  const data = await llmRaw(messages, opts)
   return data.choices?.[0]?.message?.content || ''
+}
+
+async function llmText(messages, opts = {}) {
+  return await llmChat(messages, opts)
 }
 
 async function llmStream(messages, { model = DEFAULT_MODEL } = {}) {
@@ -157,12 +166,328 @@ function setAuthCookie(res, token) {
 }
 function publicUser(u) {
   if (!u) return null
-  return { id: u.id, email: u.email, name: u.name, is_admin: !!u.is_admin, last_ads_shown_at: u.last_ads_shown_at || 0 }
+  return { id: u.id, email: u.email, name: u.name, is_admin: !!u.is_admin, is_approved: u.is_approved !== false, last_ads_shown_at: u.last_ads_shown_at || 0, avatar: u.avatar || '', created_at: u.created_at }
 }
 function needsAds(user) {
   if (!user) return false
   const last = user.last_ads_shown_at || 0
   return (Date.now() - last) >= 24 * 60 * 60 * 1000
+}
+
+// ---------------- Admin Agent (function calling) ----------------
+const ADMIN_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'list_users',
+      description: 'List users on the platform. Optionally filter or search.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search by email or name' },
+          only_pending: { type: 'boolean', description: 'Only show users awaiting approval' },
+          only_admins: { type: 'boolean' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'approve_user',
+      description: 'Approve a pending user so they can use the platform.',
+      parameters: { type: 'object', properties: { email_or_id: { type: 'string' } }, required: ['email_or_id'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'disapprove_user',
+      description: 'Block a user from accessing the platform (revoke approval).',
+      parameters: { type: 'object', properties: { email_or_id: { type: 'string' } }, required: ['email_or_id'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_user',
+      description: "Permanently delete a user account and all their data (tests, attempts, chats).",
+      parameters: { type: 'object', properties: { email_or_id: { type: 'string' } }, required: ['email_or_id'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'promote_to_admin',
+      description: 'Grant a user admin privileges.',
+      parameters: { type: 'object', properties: { email_or_id: { type: 'string' } }, required: ['email_or_id'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'demote_from_admin',
+      description: 'Revoke admin privileges from a user.',
+      parameters: { type: 'object', properties: { email_or_id: { type: 'string' } }, required: ['email_or_id'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_ads',
+      description: 'List all ads with stats.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_ad',
+      description: 'Create a new ad. Requires title, image_url, target_url.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          image_url: { type: 'string' },
+          target_url: { type: 'string' },
+          type: { type: 'string', enum: ['image', 'video'] },
+          duration: { type: 'number' },
+        },
+        required: ['title', 'image_url', 'target_url'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'toggle_ad',
+      description: 'Activate or deactivate an ad by id or title.',
+      parameters: {
+        type: 'object',
+        properties: { id_or_title: { type: 'string' }, active: { type: 'boolean' } },
+        required: ['id_or_title', 'active'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_ad',
+      description: 'Delete an ad by id or title.',
+      parameters: { type: 'object', properties: { id_or_title: { type: 'string' } }, required: ['id_or_title'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_require_approval',
+      description: 'Toggle whether new signups must be approved by an admin before using the platform.',
+      parameters: { type: 'object', properties: { enabled: { type: 'boolean' } }, required: ['enabled'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_platform_stats',
+      description: 'Return overall platform statistics: users, tests, attempts, ads, revenue indicators.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_tests',
+      description: 'List tests, optionally filtered by author email or topic.',
+      parameters: { type: 'object', properties: { author: { type: 'string' }, query: { type: 'string' } } },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_test',
+      description: 'Delete a test by id.',
+      parameters: { type: 'object', properties: { test_id: { type: 'string' } }, required: ['test_id'] },
+    },
+  },
+]
+
+const AGENT_SYSTEM = `You are the Admin Co-Pilot for "AI Coding Practice Arena".
+You help the human admin manage users (approve, delete, promote), ads, and platform settings via tool calls.
+Be concise. When asked to do something, USE THE TOOLS. Don't make up results.
+Before destructive bulk actions (delete multiple), list the items first and confirm.
+After actions, summarize what changed in 1-2 sentences. Use markdown lists when listing.
+If a tool returns many items, summarize the most relevant ones.`
+
+async function findUser(db, ref) {
+  if (!ref) return null
+  const byId = await db.collection('users').findOne({ id: ref })
+  if (byId) return byId
+  return await db.collection('users').findOne({ email: ref.toLowerCase() })
+}
+async function findAd(db, ref) {
+  if (!ref) return null
+  const byId = await db.collection('ads').findOne({ id: ref })
+  if (byId) return byId
+  return await db.collection('ads').findOne({ title: { $regex: new RegExp(ref, 'i') } })
+}
+
+async function executeAgentTool(name, args, db, currentUser) {
+  switch (name) {
+    case 'list_users': {
+      const q = {}
+      if (args.only_pending) q.is_approved = false
+      if (args.only_admins) q.is_admin = true
+      let users = await db.collection('users').find(q).limit(200).toArray()
+      if (args.query) {
+        const s = args.query.toLowerCase()
+        users = users.filter(u => u.email.toLowerCase().includes(s) || (u.name || '').toLowerCase().includes(s))
+      }
+      return users.slice(0, 50).map(u => ({
+        id: u.id, email: u.email, name: u.name,
+        is_admin: !!u.is_admin, is_approved: u.is_approved !== false,
+        created_at: u.created_at,
+      }))
+    }
+    case 'approve_user': {
+      const u = await findUser(db, args.email_or_id)
+      if (!u) return { error: 'User not found' }
+      await db.collection('users').updateOne({ id: u.id }, { $set: { is_approved: true } })
+      return { ok: true, user: { id: u.id, email: u.email, name: u.name, is_approved: true } }
+    }
+    case 'disapprove_user': {
+      const u = await findUser(db, args.email_or_id)
+      if (!u) return { error: 'User not found' }
+      if (u.id === currentUser.id) return { error: "You can't disapprove yourself" }
+      await db.collection('users').updateOne({ id: u.id }, { $set: { is_approved: false } })
+      return { ok: true, user: { id: u.id, email: u.email, is_approved: false } }
+    }
+    case 'delete_user': {
+      const u = await findUser(db, args.email_or_id)
+      if (!u) return { error: 'User not found' }
+      if (u.id === currentUser.id) return { error: "You can't delete yourself" }
+      await db.collection('users').deleteOne({ id: u.id })
+      const t = await db.collection('tests').deleteMany({ user_id: u.id })
+      const a = await db.collection('attempts').deleteMany({ user_id: u.id })
+      await db.collection('chat_messages').deleteMany({ user_id: u.id })
+      return { ok: true, deleted_user: u.email, removed_tests: t.deletedCount, removed_attempts: a.deletedCount }
+    }
+    case 'promote_to_admin': {
+      const u = await findUser(db, args.email_or_id)
+      if (!u) return { error: 'User not found' }
+      await db.collection('users').updateOne({ id: u.id }, { $set: { is_admin: true } })
+      return { ok: true, email: u.email, is_admin: true }
+    }
+    case 'demote_from_admin': {
+      const u = await findUser(db, args.email_or_id)
+      if (!u) return { error: 'User not found' }
+      if (u.id === currentUser.id) return { error: "You can't demote yourself" }
+      await db.collection('users').updateOne({ id: u.id }, { $set: { is_admin: false } })
+      return { ok: true, email: u.email, is_admin: false }
+    }
+    case 'list_ads': {
+      const ads = await db.collection('ads').find({}, { projection: { _id: 0 } }).toArray()
+      return ads
+    }
+    case 'create_ad': {
+      const id = uuidv4()
+      const ad = {
+        id,
+        title: args.title || 'Untitled Ad',
+        image_url: args.image_url || '',
+        target_url: args.target_url || '#',
+        type: args.type || 'image',
+        duration: args.duration || 6,
+        active: true,
+        impressions: 0, clicks: 0,
+        created_at: new Date().toISOString(),
+      }
+      await db.collection('ads').insertOne(ad)
+      const { _id, ...clean } = ad
+      return { ok: true, ad: clean }
+    }
+    case 'toggle_ad': {
+      const ad = await findAd(db, args.id_or_title)
+      if (!ad) return { error: 'Ad not found' }
+      await db.collection('ads').updateOne({ id: ad.id }, { $set: { active: !!args.active } })
+      return { ok: true, id: ad.id, title: ad.title, active: !!args.active }
+    }
+    case 'delete_ad': {
+      const ad = await findAd(db, args.id_or_title)
+      if (!ad) return { error: 'Ad not found' }
+      await db.collection('ads').deleteOne({ id: ad.id })
+      return { ok: true, deleted: ad.title }
+    }
+    case 'set_require_approval': {
+      await db.collection('config').updateOne(
+        { id: 'platform' },
+        { $set: { id: 'platform', require_approval: !!args.enabled } },
+        { upsert: true }
+      )
+      return { ok: true, require_approval: !!args.enabled }
+    }
+    case 'get_platform_stats': {
+      const totalUsers = await db.collection('users').countDocuments({})
+      const pendingUsers = await db.collection('users').countDocuments({ is_approved: false })
+      const totalAdmins = await db.collection('users').countDocuments({ is_admin: true })
+      const totalTests = await db.collection('tests').countDocuments({})
+      const totalAttempts = await db.collection('attempts').countDocuments({})
+      const ads = await db.collection('ads').find({}).toArray()
+      const adImpr = ads.reduce((s, a) => s + (a.impressions || 0), 0)
+      const adClicks = ads.reduce((s, a) => s + (a.clicks || 0), 0)
+      return { totalUsers, pendingUsers, totalAdmins, totalTests, totalAttempts, totalAds: ads.length, adImpressions: adImpr, adClicks, adCTR: adImpr ? +(adClicks / adImpr * 100).toFixed(2) : 0 }
+    }
+    case 'list_tests': {
+      const all = await db.collection('tests').find({}, { projection: { _id: 0 } }).limit(100).toArray()
+      let filtered = all
+      if (args.author) {
+        const u = await findUser(db, args.author)
+        if (u) filtered = filtered.filter(t => t.user_id === u.id)
+      }
+      if (args.query) {
+        const s = args.query.toLowerCase()
+        filtered = filtered.filter(t => t.title?.toLowerCase().includes(s) || (t.tags || []).some(x => x.toLowerCase().includes(s)))
+      }
+      return filtered.slice(0, 30).map(t => ({ id: t.id, title: t.title, difficulty: t.difficulty, tags: t.tags, questions: t.questions?.length || 0, user_id: t.user_id }))
+    }
+    case 'delete_test': {
+      const r = await db.collection('tests').deleteOne({ id: args.test_id })
+      return { ok: r.deletedCount > 0 }
+    }
+    default:
+      return { error: `Unknown tool: ${name}` }
+  }
+}
+
+async function runAdminAgent(userMessage, history, db, currentUser) {
+  const messages = [
+    { role: 'system', content: AGENT_SYSTEM },
+    ...(history || []).filter(m => m.role && (m.content || m.tool_calls)).slice(-20),
+    { role: 'user', content: userMessage },
+  ]
+  const actions = []
+  for (let i = 0; i < 6; i++) {
+    const data = await llmRaw(messages, { tools: ADMIN_TOOLS })
+    const msg = data.choices?.[0]?.message
+    if (!msg) break
+    messages.push(msg)
+    if (!msg.tool_calls || !msg.tool_calls.length) {
+      return { reply: msg.content || '', actions, history: messages.slice(1) } // strip system
+    }
+    for (const tc of msg.tool_calls) {
+      let args = {}
+      try { args = JSON.parse(tc.function?.arguments || '{}') } catch {}
+      let result
+      try {
+        result = await executeAgentTool(tc.function.name, args, db, currentUser)
+        actions.push({ name: tc.function.name, args, result })
+      } catch (e) {
+        result = { error: e.message }
+        actions.push({ name: tc.function.name, args, error: e.message })
+      }
+      messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result).slice(0, 6000) })
+    }
+  }
+  return { reply: 'Reached tool-call iteration limit.', actions, history: messages.slice(1) }
 }
 
 // ---------------- Routes ----------------
@@ -176,6 +501,49 @@ export async function GET(request, { params }) {
       const u = await requireUser(request)
       if (!u) return ok({ user: null })
       return ok({ user: publicUser(u), needs_ads: needsAds(u) })
+    }
+
+    if (path === 'admin/users') {
+      const u = await requireUser(request); if (!u || !u.is_admin) return err('Admin only', 403)
+      const all = await db.collection('users').find({}, { projection: { _id: 0, password_hash: 0 } }).sort({ created_at: -1 }).toArray()
+      // augment with counts
+      const ids = all.map(x => x.id)
+      const tests = await db.collection('tests').aggregate([
+        { $match: { user_id: { $in: ids } } },
+        { $group: { _id: '$user_id', count: { $sum: 1 } } },
+      ]).toArray()
+      const attempts = await db.collection('attempts').aggregate([
+        { $match: { user_id: { $in: ids } } },
+        { $group: { _id: '$user_id', count: { $sum: 1 }, solved: { $sum: { $cond: [{ $and: [{ $gt: ['$total', 0] }, { $eq: ['$passed', '$total'] }] }, 1, 0] } } } },
+      ]).toArray()
+      const tMap = Object.fromEntries(tests.map(x => [x._id, x.count]))
+      const aMap = Object.fromEntries(attempts.map(x => [x._id, x]))
+      const users = all.map(x => ({
+        ...publicUser(x),
+        tests_count: tMap[x.id] || 0,
+        attempts_count: aMap[x.id]?.count || 0,
+        solved_count: aMap[x.id]?.solved || 0,
+      }))
+      return ok({ users })
+    }
+
+    if (path === 'admin/config') {
+      const u = await requireUser(request); if (!u || !u.is_admin) return err('Admin only', 403)
+      const cfg = await db.collection('config').findOne({ id: 'platform' }) || {}
+      return ok({ require_approval: !!cfg.require_approval })
+    }
+
+    if (path === 'auth/profile') {
+      const u = await requireUser(request); if (!u) return err('Auth required', 401)
+      const tests = await db.collection('tests').countDocuments({ user_id: u.id })
+      const attempts = await db.collection('attempts').countDocuments({ user_id: u.id })
+      const solved = await db.collection('attempts').aggregate([
+        { $match: { user_id: u.id } },
+        { $group: { _id: '$question_id', best: { $max: { $cond: [{ $and: [{ $gt: ['$total', 0] }, { $eq: ['$passed', '$total'] }] }, 1, 0] } } } },
+        { $match: { best: 1 } },
+        { $count: 'n' },
+      ]).toArray()
+      return ok({ user: publicUser(u), stats: { tests, attempts, solved: solved[0]?.n || 0 } })
     }
 
     if (path === 'templates') return ok({ templates: TEMPLATES })
@@ -354,18 +722,84 @@ export async function POST(request, { params }) {
       const exists = await db.collection('users').findOne({ email })
       if (exists) return err('Email already registered', 409)
       const totalUsers = await db.collection('users').countDocuments({})
+      const cfg = await db.collection('config').findOne({ id: 'platform' }) || {}
+      const requireApproval = !!cfg.require_approval
       const id = uuidv4()
       const user = {
         id, email, name,
         password_hash: bcrypt.hashSync(password, 10),
         is_admin: totalUsers === 0,
+        is_approved: totalUsers === 0 || !requireApproval,
         last_ads_shown_at: 0,
+        avatar: '',
         created_at: new Date().toISOString(),
       }
       await db.collection('users').insertOne(user)
       const token = signToken({ id, email })
       const res = ok({ user: publicUser(user), needs_ads: needsAds(user) })
       return setAuthCookie(res, token)
+    }
+
+    if (path === 'auth/profile') {
+      const u = await requireUser(request); if (!u) return err('Auth required', 401)
+      const update = {}
+      if (typeof body.name === 'string' && body.name.trim()) update.name = body.name.trim()
+      if (typeof body.avatar === 'string') update.avatar = body.avatar
+      if (body.new_password) {
+        if ((body.new_password || '').length < 6) return err('Password must be >=6 chars')
+        if (!body.current_password || !bcrypt.compareSync(body.current_password, u.password_hash)) {
+          return err('Current password incorrect', 401)
+        }
+        update.password_hash = bcrypt.hashSync(body.new_password, 10)
+      }
+      if (Object.keys(update).length === 0) return err('Nothing to update')
+      await db.collection('users').updateOne({ id: u.id }, { $set: update })
+      const fresh = await db.collection('users').findOne({ id: u.id })
+      return ok({ user: publicUser(fresh) })
+    }
+
+    // Admin user management
+    if (path.startsWith('admin/users/') && path.endsWith('/approve')) {
+      const u = await requireUser(request); if (!u || !u.is_admin) return err('Admin only', 403)
+      const id = path.split('/')[2]
+      await db.collection('users').updateOne({ id }, { $set: { is_approved: true } })
+      return ok({ ok: true })
+    }
+    if (path.startsWith('admin/users/') && path.endsWith('/disapprove')) {
+      const u = await requireUser(request); if (!u || !u.is_admin) return err('Admin only', 403)
+      const id = path.split('/')[2]
+      if (id === u.id) return err("Can't disapprove yourself")
+      await db.collection('users').updateOne({ id }, { $set: { is_approved: false } })
+      return ok({ ok: true })
+    }
+    if (path.startsWith('admin/users/') && path.endsWith('/promote')) {
+      const u = await requireUser(request); if (!u || !u.is_admin) return err('Admin only', 403)
+      const id = path.split('/')[2]
+      await db.collection('users').updateOne({ id }, { $set: { is_admin: true } })
+      return ok({ ok: true })
+    }
+    if (path.startsWith('admin/users/') && path.endsWith('/demote')) {
+      const u = await requireUser(request); if (!u || !u.is_admin) return err('Admin only', 403)
+      const id = path.split('/')[2]
+      if (id === u.id) return err("Can't demote yourself")
+      await db.collection('users').updateOne({ id }, { $set: { is_admin: false } })
+      return ok({ ok: true })
+    }
+    if (path === 'admin/config') {
+      const u = await requireUser(request); if (!u || !u.is_admin) return err('Admin only', 403)
+      await db.collection('config').updateOne(
+        { id: 'platform' },
+        { $set: { id: 'platform', require_approval: !!body.require_approval } },
+        { upsert: true }
+      )
+      return ok({ ok: true })
+    }
+    if (path === 'admin/agent') {
+      const u = await requireUser(request); if (!u || !u.is_admin) return err('Admin only', 403)
+      const message = (body.message || '').trim()
+      if (!message) return err('Message required')
+      const result = await runAdminAgent(message, body.history || [], db, u)
+      return ok(result)
     }
 
     if (path === 'auth/login') {
@@ -672,6 +1106,16 @@ export async function DELETE(request, { params }) {
   const path = (params?.path || []).join('/')
   try {
     const db = await getDb()
+    if (path.startsWith('admin/users/')) {
+      const u = await requireUser(request); if (!u || !u.is_admin) return err('Admin only', 403)
+      const id = path.split('/')[2]
+      if (id === u.id) return err("Can't delete yourself")
+      await db.collection('users').deleteOne({ id })
+      await db.collection('tests').deleteMany({ user_id: id })
+      await db.collection('attempts').deleteMany({ user_id: id })
+      await db.collection('chat_messages').deleteMany({ user_id: id })
+      return ok({ deleted: true })
+    }
     if (path.startsWith('tests/')) {
       const u = await requireUser(request); if (!u) return err('Auth required', 401)
       const id = path.split('/')[1]

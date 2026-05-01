@@ -20,7 +20,9 @@ import {
   Send, Sparkles, Code2, Play, Check, X, Loader2, Brain, ArrowLeft,
   Trash2, Timer, Trophy, Target, TrendingUp, FileCode2, Zap, MessageSquare,
   LogOut, User, Shield, Lightbulb, History as HistoryIcon, Share2, Crown,
-  GraduationCap, Eye, MousePointerClick, Plus, Power, Copy,
+  GraduationCap, Eye, MousePointerClick, Plus, Power, Copy, Bot, Users,
+  CheckCircle2, XCircle, ShieldCheck, Settings as SettingsIcon, KeyRound,
+  Hourglass, UserCircle,
 } from 'lucide-react'
 
 const Monaco = dynamic(() => import('@monaco-editor/react'), { ssr: false })
@@ -85,13 +87,16 @@ export default function App() {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>
   }
   if (!user) return <AuthGate onAuth={(u, na) => { setUser(u); setNeedsAds(na) }} />
+  if (user.is_approved === false) return <PendingApproval user={user} onLogout={async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }); setUser(null)
+  }} />
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-slate-950">
       <Header user={user} view={view} setView={setView} onLogout={async () => {
         await fetch('/api/auth/logout', { method: 'POST' })
         setUser(null); setView('home')
-      }} />
+      }} onProfile={() => setView('profile')} />
       {needsAds && <AdsModal onDone={() => setNeedsAds(false)} />}
       {view === 'home' && (
         <Home tests={tests} onOpenTest={(t) => { setActiveTest(t); setActiveQ(0); setView('solve') }} onReload={loadTests} />
@@ -102,6 +107,23 @@ export default function App() {
       )}
       {view === 'dashboard' && <Dashboard onBack={() => setView('home')} />}
       {view === 'admin' && user.is_admin && <AdminPanel onBack={() => setView('home')} />}
+      {view === 'profile' && <Profile user={user} onUpdated={(u) => setUser(u)} onBack={() => setView('home')} />}
+    </div>
+  )
+}
+
+// ============= PENDING APPROVAL =============
+function PendingApproval({ user, onLogout }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="max-w-md text-center border-amber-500/40 bg-amber-500/5">
+        <CardContent className="py-10">
+          <Hourglass className="w-12 h-12 text-amber-400 mx-auto mb-3 animate-pulse" />
+          <h2 className="text-xl font-bold mb-1">Awaiting admin approval</h2>
+          <p className="text-sm text-muted-foreground mb-4">Hi <b>{user.name}</b>! Your account is created but needs to be approved by an admin before you can use the platform.</p>
+          <Button variant="outline" size="sm" onClick={onLogout}><LogOut className="w-3.5 h-3.5 mr-1.5" /> Sign out</Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -252,7 +274,7 @@ function AdsModal({ onDone }) {
 }
 
 // ============= HEADER =============
-function Header({ user, view, setView, onLogout }) {
+function Header({ user, view, setView, onLogout, onProfile }) {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 backdrop-blur-lg bg-background/70">
       <div className="container mx-auto flex items-center justify-between py-3 px-4">
@@ -281,9 +303,9 @@ function Header({ user, view, setView, onLogout }) {
             </Button>
           )}
           <div className="ml-2 flex items-center gap-2 pl-2 border-l border-border/60">
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold">
+            <button onClick={onProfile} title="Profile" className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500/40 to-purple-500/40 flex items-center justify-center text-xs font-semibold hover:scale-105 transition">
               {user.is_admin ? <Crown className="w-3.5 h-3.5 text-amber-400" /> : (user.name?.[0]?.toUpperCase() || 'U')}
-            </div>
+            </button>
             <Button variant="ghost" size="sm" onClick={onLogout}><LogOut className="w-3.5 h-3.5" /></Button>
           </div>
         </nav>
@@ -907,96 +929,408 @@ function StatCard({ icon, label, value }) {
   )
 }
 
-// ============= ADMIN PANEL =============
+// ============= ADMIN PANEL (tabbed) =============
 function AdminPanel({ onBack }) {
-  const [data, setData] = useState(null)
-  const [showAdd, setShowAdd] = useState(false)
-  const [adsense, setAdsense] = useState({ client: '', slot: '' })
+  const [tab, setTab] = useState('agent')
+  return (
+    <main className="container mx-auto px-4 py-6 max-w-6xl">
+      <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
+      <div className="flex items-center justify-between mt-4 mb-4 flex-wrap gap-2">
+        <h1 className="text-2xl font-bold flex items-center gap-2"><Crown className="w-6 h-6 text-amber-400" /> Admin Console</h1>
+      </div>
+      <Tabs value={tab} onValueChange={setTab} className="w-full">
+        <TabsList className="grid grid-cols-4 max-w-2xl">
+          <TabsTrigger value="agent"><Bot className="w-3.5 h-3.5 mr-1.5" /> AI Agent</TabsTrigger>
+          <TabsTrigger value="users"><Users className="w-3.5 h-3.5 mr-1.5" /> Users</TabsTrigger>
+          <TabsTrigger value="ads"><FileCode2 className="w-3.5 h-3.5 mr-1.5" /> Ads</TabsTrigger>
+          <TabsTrigger value="settings"><SettingsIcon className="w-3.5 h-3.5 mr-1.5" /> Settings</TabsTrigger>
+        </TabsList>
+        <TabsContent value="agent" className="mt-4"><AgentTab /></TabsContent>
+        <TabsContent value="users" className="mt-4"><UsersTab /></TabsContent>
+        <TabsContent value="ads" className="mt-4"><AdsTab /></TabsContent>
+        <TabsContent value="settings" className="mt-4"><SettingsTab /></TabsContent>
+      </Tabs>
+    </main>
+  )
+}
 
+function AgentTab() {
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: "Hi admin! I'm your **AI Co-Pilot**. Ask me to manage users, ads, settings, anything. Try:\n\n- *\"Show me all pending users\"*\n- *\"Approve everyone except spammers\"*\n- *\"Create an ad for my course at https://example.com/course with image https://picsum.photos/seed/c/600/300\"*\n- *\"Delete user bob@arena.test\"*\n- *\"Enable approval workflow\"*\n- *\"Show platform stats\"*" },
+  ])
+  const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [history, setHistory] = useState([])
+  const scrollRef = useRef(null)
+
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight }, [messages, busy])
+
+  const send = async () => {
+    if (!input.trim() || busy) return
+    const txt = input.trim()
+    setInput('')
+    setMessages(m => [...m, { role: 'user', content: txt }])
+    setBusy(true)
+    try {
+      const r = await fetch('/api/admin/agent', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: txt, history }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error)
+      setHistory(d.history || [])
+      setMessages(m => [...m, { role: 'assistant', content: d.reply, actions: d.actions || [] }])
+    } catch (e) { toast.error(e.message); setMessages(m => [...m, { role: 'assistant', content: `Error: ${e.message}` }]) }
+    setBusy(false)
+  }
+
+  const quick = ['Show me all users', 'Show pending users', 'Show platform stats', 'List all ads']
+
+  return (
+    <Card className="border-border/60 bg-card/40 h-[calc(100vh-15rem)] min-h-[500px] flex flex-col">
+      <CardHeader className="pb-2 border-b border-border/60">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Bot className="w-4 h-4 text-purple-400" /> Admin Co-Pilot
+          <span className="ml-auto text-[10px] font-normal text-muted-foreground">Function calling • GPT-5.1</span>
+        </CardTitle>
+      </CardHeader>
+      <ScrollArea className="flex-1">
+        <div ref={scrollRef} className="p-4 space-y-3">
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 ${m.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted/70 border border-border/60'}`}>
+                {m.actions?.length > 0 && (
+                  <div className="mb-2 space-y-1">
+                    {m.actions.map((a, j) => (
+                      <div key={j} className="text-[10px] flex items-start gap-1.5 px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-mono">
+                        <Zap className="w-3 h-3 mt-0.5 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold">{a.name}({Object.keys(a.args || {}).length ? JSON.stringify(a.args).slice(0, 80) : ''})</div>
+                          {a.error && <div className="text-rose-400">Error: {a.error}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="prose prose-sm prose-invert max-w-none prose-p:my-1">
+                  <ReactMarkdown>{m.content || ''}</ReactMarkdown>
+                </div>
+              </div>
+            </div>
+          ))}
+          {busy && (
+            <div className="flex justify-start">
+              <div className="bg-muted/70 border border-border/60 rounded-2xl px-4 py-2.5 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-xs text-muted-foreground">Thinking & acting...</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+      <div className="p-3 border-t border-border/60 space-y-2">
+        <Textarea value={input} onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+          placeholder="e.g. 'Approve all pending users', 'Create an ad for…', 'Delete bob@arena.test'"
+          className="min-h-[60px] resize-none bg-background/60" disabled={busy} />
+        <div className="flex gap-1.5 flex-wrap">
+          {quick.map(q => (
+            <button key={q} onClick={() => setInput(q)} className="text-[11px] px-2 py-1 rounded-full bg-muted/50 hover:bg-muted text-muted-foreground transition">{q}</button>
+          ))}
+          <Button onClick={send} disabled={busy || !input.trim()} size="sm" className="ml-auto bg-gradient-to-r from-indigo-500 to-purple-500">
+            <Send className="w-3.5 h-3.5 mr-1.5" /> Run
+          </Button>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+function UsersTab() {
+  const [users, setUsers] = useState([])
+  const [q, setQ] = useState('')
+  const [filter, setFilter] = useState('all') // all | pending | admins
   const load = async () => {
-    const r = await fetch('/api/admin/ads')
+    const r = await fetch('/api/admin/users')
     const d = await r.json()
-    setData(d)
-    if (d.adsense) setAdsense(d.adsense)
+    setUsers(d.users || [])
   }
   useEffect(() => { load() }, [])
 
-  const toggle = async (ad) => {
-    await fetch(`/api/admin/ads/${ad.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !ad.active }) })
-    load()
+  const act = async (u, action) => {
+    const map = {
+      approve: { url: `/api/admin/users/${u.id}/approve`, method: 'POST' },
+      disapprove: { url: `/api/admin/users/${u.id}/disapprove`, method: 'POST' },
+      promote: { url: `/api/admin/users/${u.id}/promote`, method: 'POST' },
+      demote: { url: `/api/admin/users/${u.id}/demote`, method: 'POST' },
+      delete: { url: `/api/admin/users/${u.id}`, method: 'DELETE' },
+    }[action]
+    if (action === 'delete' && !confirm(`Delete ${u.email}? This wipes all their data.`)) return
+    const r = await fetch(map.url, { method: map.method })
+    if (r.ok) { toast.success(`${action} ${u.email}`); load() } else { const d = await r.json(); toast.error(d.error) }
   }
-  const remove = async (ad) => {
-    await fetch(`/api/admin/ads/${ad.id}`, { method: 'DELETE' })
-    toast.success('Ad deleted'); load()
+
+  let filtered = users
+  if (filter === 'pending') filtered = filtered.filter(u => !u.is_approved)
+  if (filter === 'admins') filtered = filtered.filter(u => u.is_admin)
+  if (q) {
+    const s = q.toLowerCase()
+    filtered = filtered.filter(u => u.email.toLowerCase().includes(s) || (u.name || '').toLowerCase().includes(s))
+  }
+
+  const pending = users.filter(u => !u.is_approved).length
+
+  return (
+    <Card className="border-border/60 bg-card/40">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <CardTitle className="text-base">Users ({users.length})</CardTitle>
+          {pending > 0 && <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30">{pending} pending</Badge>}
+          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search..." className="w-48 ml-auto h-8" />
+          <Select value={filter} onValueChange={setFilter}>
+            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="admins">Admins</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {filtered.length === 0 && <div className="text-sm text-muted-foreground py-6 text-center">No users found.</div>}
+        {filtered.map(u => (
+          <div key={u.id} className={`flex items-center gap-3 p-3 rounded border ${u.is_approved ? 'border-border/60' : 'border-amber-500/40 bg-amber-500/5'}`}>
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500/40 to-purple-500/40 flex items-center justify-center font-bold text-sm shrink-0">
+              {u.is_admin ? <Crown className="w-4 h-4 text-amber-400" /> : (u.name?.[0]?.toUpperCase() || '?')}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm flex items-center gap-2">
+                {u.name}
+                {u.is_admin && <Badge className="text-[9px] py-0 px-1.5 bg-amber-500/20 text-amber-300 border-amber-500/30">admin</Badge>}
+                {!u.is_approved && <Badge className="text-[9px] py-0 px-1.5 bg-rose-500/20 text-rose-300 border-rose-500/30">pending</Badge>}
+              </div>
+              <div className="text-[10px] text-muted-foreground truncate">{u.email}</div>
+              <div className="text-[10px] text-muted-foreground">{u.tests_count} tests • {u.attempts_count} attempts • {u.solved_count} solved</div>
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {!u.is_approved && (
+                <Button size="sm" variant="outline" className="h-7 text-[11px] border-emerald-500/40 text-emerald-300" onClick={() => act(u, 'approve')}>
+                  <CheckCircle2 className="w-3 h-3 mr-1" /> Approve
+                </Button>
+              )}
+              {u.is_approved && (
+                <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => act(u, 'disapprove')}>
+                  <XCircle className="w-3 h-3 mr-1" /> Block
+                </Button>
+              )}
+              {u.is_admin
+                ? <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => act(u, 'demote')}>Demote</Button>
+                : <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => act(u, 'promote')}><ShieldCheck className="w-3 h-3 mr-1" /> Promote</Button>}
+              <Button size="sm" variant="ghost" className="h-7 text-[11px] hover:text-destructive" onClick={() => act(u, 'delete')}>
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
+function AdsTab() {
+  const [data, setData] = useState(null)
+  const [showAdd, setShowAdd] = useState(false)
+  const load = async () => { const r = await fetch('/api/admin/ads'); setData(await r.json()) }
+  useEffect(() => { load() }, [])
+  const toggle = async (ad) => { await fetch(`/api/admin/ads/${ad.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !ad.active }) }); load() }
+  const remove = async (ad) => { await fetch(`/api/admin/ads/${ad.id}`, { method: 'DELETE' }); toast.success('Ad deleted'); load() }
+  if (!data) return <Loader2 className="w-5 h-5 animate-spin" />
+  return (
+    <>
+      <div className="grid md:grid-cols-3 gap-3 mb-4">
+        <StatCard icon={<FileCode2 className="w-5 h-5 text-indigo-400" />} label="Total Ads" value={data.stats.total_ads} />
+        <StatCard icon={<Eye className="w-5 h-5 text-emerald-400" />} label="Impressions" value={data.stats.impressions} />
+        <StatCard icon={<MousePointerClick className="w-5 h-5 text-pink-400" />} label="Clicks" value={data.stats.clicks} />
+      </div>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Custom Ads ({data.ads.length})</CardTitle>
+            <Button size="sm" onClick={() => setShowAdd(true)} className="bg-gradient-to-r from-indigo-500 to-purple-500">
+              <Plus className="w-3.5 h-3.5 mr-1" /> New Ad
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {data.ads.length === 0 && <div className="text-muted-foreground text-sm py-8 text-center">No ads yet.</div>}
+          {data.ads.map(ad => (
+            <div key={ad.id} className="flex gap-3 p-3 rounded border border-border/60 bg-card/40">
+              {ad.image_url && (ad.type === 'video'
+                ? <video src={ad.image_url} className="w-32 h-20 object-cover rounded" />
+                : <img src={ad.image_url} alt="" className="w-32 h-20 object-cover rounded" />)}
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm truncate">{ad.title}</div>
+                <div className="text-[10px] text-muted-foreground truncate">{ad.target_url}</div>
+                <div className="flex gap-3 text-[10px] text-muted-foreground mt-1">
+                  <span><Eye className="w-3 h-3 inline" /> {ad.impressions || 0}</span>
+                  <span><MousePointerClick className="w-3 h-3 inline" /> {ad.clicks || 0}</span>
+                  <span>CTR {ad.impressions ? ((ad.clicks || 0) / ad.impressions * 100).toFixed(1) : 0}%</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={ad.active} onCheckedChange={() => toggle(ad)} />
+                <Button size="sm" variant="ghost" onClick={() => remove(ad)}><Trash2 className="w-3.5 h-3.5" /></Button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+      {showAdd && <AddAdDialog onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); load() }} />}
+    </>
+  )
+}
+
+function SettingsTab() {
+  const [cfg, setCfg] = useState({ require_approval: false })
+  const [adsense, setAdsense] = useState({ client: '', slot: '' })
+  const [loaded, setLoaded] = useState(false)
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/admin/config').then(r => r.json()),
+      fetch('/api/admin/ads').then(r => r.json()),
+    ]).then(([c, a]) => { setCfg({ require_approval: !!c.require_approval }); setAdsense(a.adsense || { client: '', slot: '' }); setLoaded(true) })
+  }, [])
+  const saveCfg = async (val) => {
+    setCfg(v => ({ ...v, require_approval: val }))
+    await fetch('/api/admin/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ require_approval: val }) })
+    toast.success('Settings saved')
   }
   const saveAdsense = async () => {
     await fetch('/api/admin/adsense', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adsense) })
     toast.success('AdSense config saved')
   }
-
+  if (!loaded) return <Loader2 className="w-5 h-5 animate-spin" />
   return (
-    <main className="container mx-auto px-4 py-6 max-w-5xl">
-      <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
-      <div className="flex items-center justify-between mt-4 mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Crown className="w-6 h-6 text-amber-400" /> Admin — Monetization</h1>
-        <Button onClick={() => setShowAdd(true)} className="bg-gradient-to-r from-indigo-500 to-purple-500"><Plus className="w-4 h-4 mr-1" /> New Ad</Button>
-      </div>
-
-      {data && (
-        <>
-          <div className="grid md:grid-cols-3 gap-4 mb-6">
-            <StatCard icon={<FileCode2 className="w-5 h-5 text-indigo-400" />} label="Total Ads" value={data.stats.total_ads} />
-            <StatCard icon={<Eye className="w-5 h-5 text-emerald-400" />} label="Impressions" value={data.stats.impressions} />
-            <StatCard icon={<MousePointerClick className="w-5 h-5 text-pink-400" />} label="Clicks" value={data.stats.clicks} />
+    <div className="space-y-4">
+      <Card>
+        <CardHeader><CardTitle className="text-base">User Approval</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium text-sm">Require admin approval for new signups</div>
+              <div className="text-xs text-muted-foreground">When ON, new users see a "pending approval" screen until you approve them.</div>
+            </div>
+            <Switch checked={cfg.require_approval} onCheckedChange={saveCfg} />
           </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Google AdSense Configuration</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <Label className="text-xs">Publisher ID (data-ad-client)</Label>
+          <Input value={adsense.client} onChange={e => setAdsense(a => ({ ...a, client: e.target.value }))} placeholder="ca-pub-xxxxxxxxxxxxxxxx" />
+          <Label className="text-xs">Ad Slot ID</Label>
+          <Input value={adsense.slot} onChange={e => setAdsense(a => ({ ...a, slot: e.target.value }))} placeholder="1234567890" />
+          <Button size="sm" onClick={saveAdsense}>Save AdSense</Button>
+          <p className="text-[10px] text-muted-foreground">Get IDs at <a href="https://www.google.com/adsense" target="_blank" rel="noreferrer" className="underline">Google AdSense</a>.</p>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
 
-          <Card className="mb-6">
-            <CardHeader><CardTitle className="text-base">Google AdSense Configuration</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              <Label className="text-xs">Publisher ID (data-ad-client)</Label>
-              <Input value={adsense.client} onChange={e => setAdsense(a => ({ ...a, client: e.target.value }))} placeholder="ca-pub-xxxxxxxxxxxxxxxx" />
-              <Label className="text-xs">Ad Slot ID</Label>
-              <Input value={adsense.slot} onChange={e => setAdsense(a => ({ ...a, slot: e.target.value }))} placeholder="1234567890" />
-              <Button size="sm" onClick={saveAdsense}>Save AdSense</Button>
-              <p className="text-[10px] text-muted-foreground">Get your IDs at <a href="https://www.google.com/adsense" target="_blank" rel="noreferrer" className="underline">Google AdSense</a>. Approval takes 1-2 weeks.</p>
-            </CardContent>
-          </Card>
+// ============= PROFILE =============
+function Profile({ user, onUpdated, onBack }) {
+  const [data, setData] = useState(null)
+  const [name, setName] = useState(user.name || '')
+  const [currentPwd, setCurrentPwd] = useState('')
+  const [newPwd, setNewPwd] = useState('')
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { fetch('/api/auth/profile').then(r => r.json()).then(setData) }, [])
 
-          <Card>
-            <CardHeader><CardTitle className="text-base">Custom Ads ({data.ads.length})</CardTitle></CardHeader>
+  const saveName = async () => {
+    setSaving(true)
+    const r = await fetch('/api/auth/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+    const d = await r.json()
+    if (r.ok) { onUpdated(d.user); toast.success('Profile updated') } else toast.error(d.error)
+    setSaving(false)
+  }
+  const savePwd = async () => {
+    if (!newPwd || !currentPwd) { toast.error('Enter both passwords'); return }
+    setSaving(true)
+    const r = await fetch('/api/auth/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current_password: currentPwd, new_password: newPwd }) })
+    const d = await r.json()
+    if (r.ok) { setCurrentPwd(''); setNewPwd(''); toast.success('Password changed') } else toast.error(d.error)
+    setSaving(false)
+  }
+  return (
+    <main className="container mx-auto px-4 py-6 max-w-3xl">
+      <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
+      <h1 className="text-2xl font-bold mt-4 mb-6 flex items-center gap-2">
+        <UserCircle className="w-6 h-6" /> My Profile
+      </h1>
+      <div className="grid md:grid-cols-3 gap-4 mb-6">
+        <Card className="md:col-span-1 border-border/60 bg-card/40">
+          <CardContent className="p-6 text-center">
+            <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-indigo-500/40 to-purple-500/40 flex items-center justify-center text-3xl font-bold mb-3">
+              {user.is_admin ? <Crown className="w-10 h-10 text-amber-400" /> : (user.name?.[0]?.toUpperCase() || '?')}
+            </div>
+            <div className="font-bold">{user.name}</div>
+            <div className="text-xs text-muted-foreground">{user.email}</div>
+            <div className="flex justify-center gap-1 mt-2">
+              {user.is_admin && <Badge className="text-[10px] bg-amber-500/20 text-amber-300 border-amber-500/30">admin</Badge>}
+              <Badge variant="outline" className="text-[10px]">joined {user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</Badge>
+            </div>
+            {data?.stats && (
+              <div className="grid grid-cols-3 gap-1 mt-4 text-center">
+                <div><div className="text-lg font-bold">{data.stats.tests}</div><div className="text-[9px] text-muted-foreground uppercase">Tests</div></div>
+                <div><div className="text-lg font-bold">{data.stats.solved}</div><div className="text-[9px] text-muted-foreground uppercase">Solved</div></div>
+                <div><div className="text-lg font-bold">{data.stats.attempts}</div><div className="text-[9px] text-muted-foreground uppercase">Attempts</div></div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        <div className="md:col-span-2 space-y-4">
+          <Card className="border-border/60 bg-card/40">
+            <CardHeader><CardTitle className="text-base">Profile Info</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              {data.ads.length === 0 && <div className="text-muted-foreground text-sm py-8 text-center">No ads yet. Click <strong>New Ad</strong> to add one.</div>}
-              {data.ads.map(ad => (
-                <div key={ad.id} className="flex gap-3 p-3 rounded border border-border/60 bg-card/40">
-                  {ad.image_url && (
-                    ad.type === 'video'
-                      ? <video src={ad.image_url} className="w-32 h-20 object-cover rounded" />
-                      : <img src={ad.image_url} alt="" className="w-32 h-20 object-cover rounded" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">{ad.title}</div>
-                    <div className="text-[10px] text-muted-foreground truncate">{ad.target_url}</div>
-                    <div className="flex gap-3 text-[10px] text-muted-foreground mt-1">
-                      <span><Eye className="w-3 h-3 inline" /> {ad.impressions || 0}</span>
-                      <span><MousePointerClick className="w-3 h-3 inline" /> {ad.clicks || 0}</span>
-                      <span>CTR {ad.impressions ? ((ad.clicks || 0) / ad.impressions * 100).toFixed(1) : 0}%</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch checked={ad.active} onCheckedChange={() => toggle(ad)} />
-                    <Button size="sm" variant="ghost" onClick={() => remove(ad)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                  </div>
-                </div>
-              ))}
+              <div>
+                <Label className="text-xs">Name</Label>
+                <Input value={name} onChange={e => setName(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs">Email (cannot change)</Label>
+                <Input value={user.email} disabled />
+              </div>
+              <Button onClick={saveName} disabled={saving || !name.trim() || name === user.name} size="sm">
+                {saving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : null} Save Name
+              </Button>
             </CardContent>
           </Card>
-        </>
-      )}
-
-      {showAdd && <AddAdDialog onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); load() }} />}
+          <Card className="border-border/60 bg-card/40">
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><KeyRound className="w-4 h-4" /> Change Password</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <Label className="text-xs">Current Password</Label>
+                <Input type="password" value={currentPwd} onChange={e => setCurrentPwd(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs">New Password (≥6 chars)</Label>
+                <Input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} />
+              </div>
+              <Button onClick={savePwd} disabled={saving || !currentPwd || !newPwd} size="sm">
+                {saving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : null} Change Password
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </main>
   )
 }
+
+// ============= OLD ADMIN PANEL (replaced - keep AddAdDialog used by AdsTab) =============
 
 function AddAdDialog({ onClose, onSaved }) {
   const [form, setForm] = useState({ title: '', image_url: '', target_url: '', type: 'image', duration: 6 })
