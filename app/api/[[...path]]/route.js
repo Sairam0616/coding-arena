@@ -795,11 +795,7 @@ export async function POST(request, { params }) {
       return ok({ ok: true })
     }
     if (path === 'admin/agent') {
-      const u = await requireUser(request); if (!u || !u.is_admin) return err('Admin only', 403)
-      const message = (body.message || '').trim()
-      if (!message) return err('Message required')
-      const result = await runAdminAgent(message, body.history || [], db, u)
-      return ok(result)
+      return err('AI Agent has been disabled to reduce LLM costs.', 410)
     }
 
     if (path === 'auth/login') {

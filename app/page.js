@@ -20,9 +20,9 @@ import {
   Send, Sparkles, Code2, Play, Check, X, Loader2, Brain, ArrowLeft,
   Trash2, Timer, Trophy, Target, TrendingUp, FileCode2, Zap, MessageSquare,
   LogOut, User, Shield, Lightbulb, History as HistoryIcon, Share2, Crown,
-  GraduationCap, Eye, MousePointerClick, Plus, Power, Copy, Bot, Users,
+  GraduationCap, Eye, MousePointerClick, Plus, Power, Copy, Users,
   CheckCircle2, XCircle, ShieldCheck, Settings as SettingsIcon, KeyRound,
-  Hourglass, UserCircle,
+  Hourglass, UserCircle, Mail,
 } from 'lucide-react'
 
 const Monaco = dynamic(() => import('@monaco-editor/react'), { ssr: false })
@@ -931,7 +931,7 @@ function StatCard({ icon, label, value }) {
 
 // ============= ADMIN PANEL (tabbed) =============
 function AdminPanel({ onBack }) {
-  const [tab, setTab] = useState('agent')
+  const [tab, setTab] = useState('users')
   return (
     <main className="container mx-auto px-4 py-6 max-w-6xl">
       <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
@@ -939,13 +939,11 @@ function AdminPanel({ onBack }) {
         <h1 className="text-2xl font-bold flex items-center gap-2"><Crown className="w-6 h-6 text-amber-400" /> Admin Console</h1>
       </div>
       <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="grid grid-cols-4 max-w-2xl">
-          <TabsTrigger value="agent"><Bot className="w-3.5 h-3.5 mr-1.5" /> AI Agent</TabsTrigger>
+        <TabsList className="grid grid-cols-3 max-w-xl">
           <TabsTrigger value="users"><Users className="w-3.5 h-3.5 mr-1.5" /> Users</TabsTrigger>
           <TabsTrigger value="ads"><FileCode2 className="w-3.5 h-3.5 mr-1.5" /> Ads</TabsTrigger>
           <TabsTrigger value="settings"><SettingsIcon className="w-3.5 h-3.5 mr-1.5" /> Settings</TabsTrigger>
         </TabsList>
-        <TabsContent value="agent" className="mt-4"><AgentTab /></TabsContent>
         <TabsContent value="users" className="mt-4"><UsersTab /></TabsContent>
         <TabsContent value="ads" className="mt-4"><AdsTab /></TabsContent>
         <TabsContent value="settings" className="mt-4"><SettingsTab /></TabsContent>
@@ -953,6 +951,8 @@ function AdminPanel({ onBack }) {
     </main>
   )
 }
+
+function AgentTab_REMOVED() { return null }
 
 function AgentTab() {
   const [messages, setMessages] = useState([
