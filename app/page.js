@@ -235,7 +235,7 @@ function AdsModal({ onDone }) {
           </div>
           <div className="mt-2">
             <div className="font-medium text-sm">{ad.title}</div>
-            <div className="text-xs text-primary">Click to learn more \u2192</div>
+            <div className="text-xs text-primary">Click to learn more →</div>
           </div>
         </a>
         {adsense?.client && adsense?.slot && (
@@ -412,7 +412,7 @@ function ChatPanel({ onTestGenerated, onOpenTest }) {
       <CardHeader className="pb-3 border-b border-border/60">
         <CardTitle className="flex items-center gap-2 text-base">
           <Sparkles className="w-4 h-4 text-purple-400" /> AI Chat
-          <span className="ml-auto text-xs font-normal text-muted-foreground">Streaming \u2022 GPT-5.1</span>
+          <span className="ml-auto text-xs font-normal text-muted-foreground">Streaming • GPT-5.1</span>
         </CardTitle>
       </CardHeader>
       <ScrollArea className="flex-1">
@@ -715,7 +715,7 @@ function Solve({ test, qIndex, setQIndex, onBack, user }) {
                       {output.stdout && <pre className="text-emerald-400 whitespace-pre-wrap">{output.stdout}</pre>}
                       {output.stderr && <pre className="text-rose-400 whitespace-pre-wrap">{output.stderr}</pre>}
                       {output.compile_output && <pre className="text-amber-400 whitespace-pre-wrap">{output.compile_output}</pre>}
-                      <div className="text-muted-foreground mt-2 text-[10px]">status: {output.status} \u2022 time: {output.time}s</div>
+                      <div className="text-muted-foreground mt-2 text-[10px]">status: {output.status} • time: {output.time}s</div>
                     </>}
                   </CardContent>
                 </ScrollArea>
@@ -735,7 +735,7 @@ function Solve({ test, qIndex, setQIndex, onBack, user }) {
                       <div key={i} className={`flex items-center gap-2 p-2 rounded border ${r.passed ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-rose-500/30 bg-rose-500/5'}`}>
                         {r.passed ? <Check className="w-4 h-4 text-emerald-400 shrink-0" /> : <X className="w-4 h-4 text-rose-400 shrink-0" />}
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium">Test {i + 1} {r.hidden && <span className="text-muted-foreground">(hidden)</span>} \u2014 {r.status}</div>
+                          <div className="font-medium">Test {i + 1} {r.hidden && <span className="text-muted-foreground">(hidden)</span>} — {r.status}</div>
                           {!r.passed && !r.hidden && (
                             <div className="text-[11px] text-muted-foreground mt-1 font-mono grid grid-cols-2 gap-2">
                               <div><div className="opacity-60">Expected:</div><pre className="whitespace-pre-wrap">{r.expected}</pre></div>
@@ -770,7 +770,7 @@ function Solve({ test, qIndex, setQIndex, onBack, user }) {
                       <div key={a.id} className="flex items-center gap-2 p-2 rounded border border-border/60 text-xs">
                         {a.passed === a.total ? <Check className="w-4 h-4 text-emerald-400" /> : <X className="w-4 h-4 text-rose-400" />}
                         <div className="flex-1">
-                          <div className="font-mono">{a.passed}/{a.total} \u2022 {a.language}</div>
+                          <div className="font-mono">{a.passed}/{a.total} • {a.language}</div>
                           <div className="text-[10px] text-muted-foreground">{new Date(a.created_at).toLocaleString()}</div>
                         </div>
                         <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => setDiffWith(a)}>Diff vs current</Button>
@@ -930,7 +930,7 @@ function AdminPanel({ onBack }) {
     <main className="container mx-auto px-4 py-6 max-w-5xl">
       <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
       <div className="flex items-center justify-between mt-4 mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Crown className="w-6 h-6 text-amber-400" /> Admin \u2014 Monetization</h1>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><Crown className="w-6 h-6 text-amber-400" /> Admin — Monetization</h1>
         <Button onClick={() => setShowAdd(true)} className="bg-gradient-to-r from-indigo-500 to-purple-500"><Plus className="w-4 h-4 mr-1" /> New Ad</Button>
       </div>
 
