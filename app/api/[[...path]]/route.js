@@ -545,12 +545,9 @@ export async function GET(request, { params }) {
     const db = await getDb()
     if (path === '' || path === 'health') return ok({ status: 'ok', service: 'coding-arena' })
 
-    if (path === 'auth/me') {
-      console.log("🔥 /api/auth/me called")
-      const u = await requireUser(request)
-      if (!u) return ok({ user: null })
-      return ok({ user: publicUser(u), needs_ads: needsAds(u) })
-    }
+   if (path === 'auth/me') {
+  return ok({ user: null, debug: "API working" })
+}
 
     if (path === 'admin/users') {
       const u = await requireUser(request); if (!u || !u.is_admin) return err('Admin only', 403)
