@@ -191,8 +191,9 @@ function normalize(s) {
   return String(s).replace(/\r\n/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\s+$/g, '')
 }
 async function requireUser(request) {
+  console.log("🔍 requireUser called")
   const u = getUserFromRequest(request)
-  if (!u) return null
+  if (!u) console.log("❌ No user from token") return null
   const db = await getDb()
   const fresh = await db.collection('users').findOne({ id: u.id })
   return fresh
@@ -538,6 +539,7 @@ export async function GET(request, { params }) {
     if (path === '' || path === 'health') return ok({ status: 'ok', service: 'coding-arena' })
 
     if (path === 'auth/me') {
+      console.log("🔥 /api/auth/me called")
       const u = await requireUser(request)
       if (!u) return ok({ user: null })
       return ok({ user: publicUser(u), needs_ads: needsAds(u) })
