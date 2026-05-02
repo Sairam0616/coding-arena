@@ -191,19 +191,18 @@ function normalize(s) {
   return String(s).replace(/\r\n/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\s+$/g, '')
 }
 async function requireUser(request) {
-  console.log("requireUser called")
+  try {
+    const u = getUserFromRequest(request)
+    if (!u) return null
 
-  const u = getUserFromRequest(request)
+    const db = await getDb()
+    const fresh = await db.collection('users').findOne({ id: u.id })
 
-  if (!u) {
-    console.log("No user from token")
+    return fresh
+  } catch (e) {
+    console.log("requireUser error:", e.message)
     return null
   }
-
-  const db = await getDb()
-  const fresh = await db.collection('users').findOne({ id: u.id })
-
-  return fresh
 }
 function setAuthCookie(res, token) {
   res.cookies.set(COOKIE_NAME, token, {
