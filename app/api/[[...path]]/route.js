@@ -192,7 +192,8 @@ function normalize(s) {
 }
 async function requireUser(request) {
   try {
-    const u = getUserFromRequest(request)
+    const u = getUserFromRequest(request) // may throw
+
     if (!u) return null
 
     const db = await getDb()
@@ -200,7 +201,7 @@ async function requireUser(request) {
 
     return fresh
   } catch (e) {
-    console.log("requireUser error:", e.message)
+    console.log("JWT error (ignored):", e.message)
     return null
   }
 }
