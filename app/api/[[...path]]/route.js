@@ -193,7 +193,7 @@ function normalize(s) {
 async function requireUser(request) {
   console.log("🔍 requireUser called")
   const u = getUserFromRequest(request)
-  if (!u) console.log("❌ No user from token") return null
+  if (!u) {console.log("❌ No user from token") return null}
   const db = await getDb()
   const fresh = await db.collection('users').findOne({ id: u.id })
   return fresh
