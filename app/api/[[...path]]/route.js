@@ -9,9 +9,37 @@ const MONGO_URL = process.env.MONGO_URL
 const DB_NAME = process.env.DB_NAME && process.env.DB_NAME !== 'your_database_name' ? process.env.DB_NAME : 'coding_arena'
 
 let _client = null
+let _connecting = null
+
 async function getDb() {
-  if (!_client) { _client = new MongoClient(MONGO_URL); await _client.connect() }
-  return _client.db(DB_NAME)
+  // Reuse cached client if it's healthy
+  if (_client) {
+    try {
+      await _client.db(DB_NAME).command({ ping: 1 })
+      return _client.db(DB_NAME)
+    } catch (e) {
+      // Connection died (sleep / network drop) — reset and reconnect
+      try { await _client.close() } catch {}
+      _client = null
+      _connecting = null
+    }
+  }
+  // Avoid simultaneous reconnects from parallel requests
+  if (!_connecting) {
+    _connecting = new MongoClient(MONGO_URL, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      maxPoolSize: 10,
+      retryWrites: true,
+    }).connect()
+  }
+  try {
+    _client = await _connecting
+    return _client.db(DB_NAME)
+  } catch (e) {
+    _connecting = null
+    throw e
+  }
 }
 
 // ---------------- LLM ----------------
