@@ -192,7 +192,7 @@ function normalize(s) {
 }
 async function requireUser(request) {
   try {
-    const u = getUserFromRequest(request) // may throw
+    const u = getUserFromRequest(request)
 
     if (!u) return null
 
@@ -201,7 +201,7 @@ async function requireUser(request) {
 
     return fresh
   } catch (e) {
-    console.log("JWT error (ignored):", e.message)
+    console.log("requireUser failed:", e.message)
     return null
   }
 }
@@ -546,7 +546,20 @@ export async function GET(request, { params }) {
     if (path === '' || path === 'health') return ok({ status: 'ok', service: 'coding-arena' })
 
    if (path === 'auth/me') {
-  return ok({ user: null, debug: "API working" })
+  try {
+    const u = await requireUser(request)
+
+    if (!u) {
+      return ok({ user: null })
+    }
+
+    return ok({ user: publicUser(u), needs_ads: needsAds(u) })
+  } catch (e) {
+    console.log("/auth/me error:", e.message)
+
+    // IMPORTANT: never crash frontend
+    return ok({ user: null, error: "safe fallback" })
+  }
 }
 
     if (path === 'admin/users') {
