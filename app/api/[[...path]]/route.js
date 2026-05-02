@@ -27,13 +27,14 @@ async function getDb() {
   // Avoid simultaneous reconnects from parallel requests
   if (!_connecting) {
     _connecting = new MongoClient(MONGO_URL, {
-      serverSelectionTimeoutMS: 15000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 15000,
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 60000,
+      connectTimeoutMS: 30000,
       maxPoolSize: 10,
       retryWrites: true,
       tls: true,
-      family: 4, // force IPv4 — fixes TLS handshake issues on some hosts (Render, Vercel)
+      tlsAllowInvalidCertificates: false,
+      tlsAllowInvalidHostnames: false,
     }).connect()
   }
   try {
