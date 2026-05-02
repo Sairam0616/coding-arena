@@ -15,9 +15,13 @@ async function getDb() {
 }
 
 // ---------------- LLM ----------------
-const EMERGENT_LLM_URL = 'https://integrations.emergentagent.com/llm/v1/chat/completions'
-const LLM_KEY = process.env.EMERGENT_LLM_KEY
-const DEFAULT_MODEL = 'gpt-5.1'
+// ---------------- LLM (provider-agnostic, OpenAI-compatible) ----------------
+// Works with Emergent proxy, OpenAI, Google Gemini, Anthropic, Groq, etc.
+// Set LLM_BASE_URL + LLM_API_KEY + LLM_MODEL in env to switch providers.
+const LLM_BASE = (process.env.LLM_BASE_URL || 'https://integrations.emergentagent.com/llm/v1').replace(/\/$/, '')
+const EMERGENT_LLM_URL = `${LLM_BASE}/chat/completions`
+const LLM_KEY = process.env.LLM_API_KEY || process.env.EMERGENT_LLM_KEY || process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY
+const DEFAULT_MODEL = process.env.LLM_MODEL || 'gpt-5.1'
 
 async function llmRaw(messages, { jsonMode = false, model = DEFAULT_MODEL, tools = null } = {}) {
   const body = { model, messages }
