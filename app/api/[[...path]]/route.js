@@ -6,6 +6,10 @@ import { signToken, getUserFromRequest, COOKIE_NAME, TEMPLATES } from '@/lib/aut
 
 // ---------------- Mongo ----------------
 const MONGO_URL = process.env.MONGO_URL
+
+if (!MONGO_URL) {
+  throw new Error("MONGO_URL is not defined")
+}
 const DB_NAME = process.env.DB_NAME && process.env.DB_NAME !== 'your_database_name' ? process.env.DB_NAME : 'coding_arena'
 
 let _client = null
